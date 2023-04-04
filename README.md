@@ -1,5 +1,6 @@
 <h1 align="center"> 👋 Hi, I’m Mark Stephens</h1>
-<h3 align="center">Student at University of Adelaide, Australia.</h3> <img title="Uni" alt="Uni" src="https://user-images.githubusercontent.com/90998903/229693112-909d3fd9-6279-4e2e-8c39-a2fc10988f0d.png" width="40" height="40" style="vertical-align:down; margin:4px"/> 
+<h4 align="center">Student at University of Adelaide, Australia.</h4>
+<img title="Uni" alt="Uni" src="https://user-images.githubusercontent.com/90998903/229693112-909d3fd9-6279-4e2e-8c39-a2fc10988f0d.png" width="40" height="40" style="vertical-align:down; margin:4px"/> 
 
 ### 👨🏻‍💻 &nbsp;About Me
 
