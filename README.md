@@ -1,7 +1,7 @@
 <h1 align="center">Hi 👋 Hi, I’m Mark Stephens</h1>
 <h3 align="center">Student at University of Adelaide, Australia.</h3> 
-![University of Adelaide]([https://github.com/MarkStephens060482/EditREADME/blob/main/university-of-adelaide-logo-freelogovectors.net_-200x200.png](https://github.com/MarkStephens060482/EditREADME/blob/main/university-of-adelaide-logo-freelogovectors.net_-200x200.png?raw=true))
-(university-of-adelaide-logo-freelogovectors.net_-200x200.png)
+![University of Adelaide](https://github.com/MarkStephens060482/EditREADME/blob/main/university-of-adelaide-logo-freelogovectors.net_-200x200.png)
+
 - 👀 I’m interested in ...
 - 🌱 I’m currently learning ...
 - 💞️ I’m looking to collaborate on ...
