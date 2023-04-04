@@ -2,7 +2,7 @@
 <h4 align="center"> <img title="Uni" alt="Uni" src="https://user-images.githubusercontent.com/90998903/229693112-909d3fd9-6279-4e2e-8c39-a2fc10988f0d.png" width="40" height="40" style="vertical-align:down; margin:4px"/> Student at University of Adelaide, Australia.</h4>
 ### 👨🏻‍💻 &nbsp;About Me
 
-💡 I like to explore new technologies and develop software solutions and quick hacks.\
+🌱 I like learn all things Data Science and grow veggies.\
 🎓 I'm currently studying Master of Applied Data Science at the University of Adelaide, Australia.\
 
 <p align="left">
