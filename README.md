@@ -13,7 +13,7 @@
 🎓 &nbsp;I'm currently studying Master of Applied Data Science at the University of Adelaide, Australia.\
  &nbsp;I also I instruct Karate at a local dojo.
  <p align="center">
-	<img title="Hadoop" alt="Hadoop" src="https://github.com/MarkStephens060482/EditREADME/blob/main/300px-Karate_icon.svg" width="70" height="40" style="vertical-align:down; margin:4px"/>
+	<img alt="Hadoop" src="https://github.com/MarkStephens060482/EditREADME/blob/main/300px-Karate_icon.svg" width="70" height="40" style="vertical-align:down; margin:4px"/>
 	
 💬 &nbsp;Feel free to reach out to me for pro bono consulting and volunteering, or just for some interesting discussion.\
 ✉️ &nbsp;You can shoot me an email at avsingh@umass.edu! I'll try to respond as soon as I can.\
