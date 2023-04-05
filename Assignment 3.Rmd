@@ -1,0 +1,990 @@
+---
+title: "Assignment 3"
+author: "Mark Stephens"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r installing packages,  echo=FALSE}
+pacman::p_load(discrim, tidyverse, tidymodels, kknn,dplyr, rsample, ISLR, themis, skimr, rpart, moments, explore, kableExtra,tidytext,GGally,ggrepel,vip,parallel,doParallel)
+path <- setwd("C:\\Users\\08632717\\Documents\\Masters of Data Science Study\\Real Data\\Assignment 3")
+```
+
+# Summary to CEO
+
+With the coming release of the highly anticipated new role-playing game for PlayStation 4, The Fatal Empire, the company may expect approximately 951,000 copies in sales in the North American video game market. This prediction is based on a thorough scientifically proven, data modelling process to develop a sophisticated model that has been optimised on video game sales data from various global markets. The model has been thoroughly tested and evaluated and has perform very well on test data. The most influential factors to form this prediction are historical sales data for the European Union market, other global markets and the Japanese market. Also, incorporating gaming platform and genre extended the model's reach to ensure it delivers accurate predictions.     
+
+# Manager's Report
+
+This report is to outline the key steps in cleaning and exploring the data, processing the data, tuning the two candidate models to work best the data, and then testing the models and measuring its predictive performance. The data underwent a number of alteration while cleaning and preparing the data. Duplicate observation were removed, as well as the top outlier values in the North America sales variable.  The data was also reduced in size by sampling evenly across the video game genre variable. This would allow the model fitting process to be more computationally feasible. Also a number of variables were dropped from the analysis, them being the video game name and  publisher.
+
+...
+
+
+
+
+# Statistician's Report
+
+# 1.0 Data Cleaning
+The data cleaning process will organise and prepare the data ready for analysis. The main tasks are as follows:
+1. Read the data, identify and define types of variables
+2. Identify and deal with missing, erroneous and duplicate data.
+3. Examine key variables, shape of distribution and outliers.
+4. Set the correct type to variables.
+
+
+```{r reading data}
+start_time = Sys.time()
+
+vgsales <- read_csv("vgsales.csv",show_col_types = FALSE)
+vgsales <- as_tibble(vgsales) 
+head(vgsales,3)%>%
+   kable(align = "c", booktabs = TRUE ,table.attr = "style='width:75%;'" ,caption = paste("Table 1.1: The video game sales data set")) %>%  
+  kable_styling(latex_options = "striped" )%>%
+  row_spec(0, background = "#FBCEB1")
+```
+
+Table 1.2 below provides an initial breakdown of the variables as  the data is read.
+
+```{r skim data 1}
+skim(vgsales)
+```
+Table 1.2: Initial breakdown of the variables.
+
+
+The reading of the data of 16598 observations has identified 5 nominal variables and 4 numerical variables. One of the nominal variables, Year, has clearly been read in incorrectly and will need to be set to the correct data type. The outcome variable NA_Sales has a range of 41.49 and mean of 0.26, suggesting a skewed distribution.
+
+
+New variables ID and World Sales are added to assist in organising and cleaning the data for analysis.
+
+```{r Add new variables}
+vgsales <- vgsales %>%
+  mutate(ID = row_number(), .before = "Name") %>%
+  mutate(World_Sales = rowSums(across(.cols = NA_Sales:Other_Sales) ))
+
+```
+
+The data dictionary outline the variables to examine in the analysis.
+
+```{r data dictionary, echo=FALSE}
+# Data dictionary of a dataframe with additional description of variables
+description <- data.frame(
+                 variable = c("ID",
+                              "Name",
+                              "Platform",
+                              "Year",
+                              "Genre",
+                              "Publisher",
+                              "NA_Sales",
+                              "EU_Sales",
+                              "JP_Sales",
+                              "Other_Sales",
+                              "World_Sales"
+                              ),
+                 description = c("Identification number of each row",
+                                 "Name of the video game.",
+                                 "The gaming platform the video game was released on (i.e. Microsoft Xbox, Play Station, etc.",
+                                 "The year the video game weas released.",
+                                 "The genre of the video game.",
+                                 "The name of the Publishing company of the video game.",
+                                 "The total sales in millions of titles for North American maket.",
+                                 "The total sales in millions of titles for the European Union market.",
+                                 "The total sales in millions of titles for the Japanese market.",
+                                 "The total sales in millions of titles for all other markets.",
+                                 "The total sales in millions of titles for Worldwide. "
+                                 ))
+data_dict_md(vgsales,
+             title = "Video game sales",
+             description = description,
+             output_dir = path)
+```
+## Data Dictionary
+**Video game sales**
+
+| variable | type  | na   | %na | unique | description |
+| -------- | ----  | ---: | -----: | -----: | ----------- |
+ | ID | int | 0 | 0 | 16598 | Identification number of each row | 
+ | Name | chr | 0 | 0 | 11493 | Name of the video game. | 
+ | Platform | chr | 0 | 0 | 31 | The gaming platform the video game was released on (i.e. Microsoft Xbox, Play Station, etc. | 
+ | Year | int | 0 | 0 | 40 | The year the video game weas released. | 
+ | Genre | chr | 0 | 0 | 12 | The genre of the video game. | 
+ | Publisher | chr | 0 | 0 | 579 | The name of the Publishing company of the video game. | 
+ | NA_Sales | dbl | 0 | 0 | 409 | The total sales in millions of US dollars for North American maket. | 
+ | EU_Sales | dbl | 0 | 0 | 305 | The total sales in millions of US dollars for the European Union market. | 
+ | JP_Sales | dbl | 0 | 0 | 244 | The total sales in millions of US dollars for the Japanese market. | 
+ | Other_Sales | dbl | 0 | 0 | 157 | The total sales in millions of US dollars for all other markets. | 
+ | World_Sales | dbl | 0 | 0 | 821 | The total sales in millions of US dollars for Worldwide.  | 
+
+
+Values that are not applicable to the variables are identified and counted as seen in Table 1.3 below.
+
+```{r Count of N/A in columns}
+# counts incidence if coerced N/A values 
+na_count <-sapply(vgsales, function(y) sum(is.na(y) | str_count(y,"N/A") ))
+data.frame(na_count)%>%
+   kable(align = "c", booktabs = TRUE ,table.attr = "style='width:75%;'" ,caption = paste("Figure 1.3: Count of N/A values across variables.")) %>%  
+  kable_styling(latex_options = "striped" )%>%
+  row_spec(0, background = "#FBCEB1")
+```
+The variable Year is incorrectly read as categorical and has 271 N/A values. The variable Publisher is of categorical type but has 58 instances of N/A values. The variables will be examined more closely before a decision is made to remove the N/A values. 
+
+Table 1.4 below shows the count of repeated observations of video games of the same Name and Platform.  
+
+```{r Count repeated observations}
+# identify repeated observations for a video game release
+vgsales %>% 
+  count(Name, Platform, sort = T ) %>% 
+  filter( n > 1 ) %>%
+   kable(align = "c", booktabs = TRUE ,table.attr = "style='width:75%;'" ,caption = paste("Table 1.4: Repeated observations.")) %>%  
+  kable_styling(latex_options = "striped" )%>%
+  row_spec(0, background = "#FBCEB1")
+
+# store Name and Platform of repeats 
+repeats <- vgsales %>% 
+  count(Name, Platform, sort = T ) %>% 
+  filter( n > 1 )  %>%
+  select(Name, Platform)
+
+#Define a tibble of observations of repeated titles, 
+vgsales_repeats <- vgsales %>% filter(Name == repeats$Name[1] & Platform == repeats$Platform[1])
+
+for (i in 2:nrow(repeats)){
+vgsales_repeats <- vgsales_repeats %>%
+ bind_rows(vgsales %>% filter(Name == repeats$Name[i] & Platform == repeats$Platform[i]))
+}
+
+```
+
+The repeated observations are arranged by World sales and the instances with the highest value are  retained while its repeat is removed.
+
+```{r remove rows from dataset}
+# arrange dataset via world sales to ensure greatest sales value of each repeat is retained 
+vgsales <- vgsales %>% 
+  arrange( -World_Sales ) %>% 
+  distinct( Name, Platform, .keep_all = T)
+
+# check again for any repeated observations for a video game release
+vgsales %>% 
+  count(Name, Platform, sort = T ) %>% 
+  filter( n > 1 ) 
+```
+
+The statistics and distribution of the numerical variables are examined.
+
+## North America Sales
+```{r response variable NA_Sales distribution}
+variable <- vgsales$NA_Sales
+five_num_sum <- summary(variable)
+IQR <- IQR(variable)
+sd <- round(sd(variable),2)
+skew <- round(skewness(variable),2)
+outliers <- boxplot.stats(variable)$out
+outliers_values_NA <- vgsales[which(variable %in% c(outliers)),]
+cat("Univariate summary of North America Sales (million)) ",capture.output(five_num_sum),"Interquartile range: ",IQR,"standard deviation: ", sd,"skewness: ", skew, "no. of outliers: ", length(outliers), sep = "\n")
+
+top_out_NA_Sales <- outliers_values_NA %>% slice_max(NA_Sales,n = 5)
+
+vgsales %>% ggplot(aes(x = log(variable+1)))+
+  geom_histogram(binwidth = 0.25, show.legend = FALSE, fill = "blue")+
+  geom_text_repel(aes(x=log(NA_Sales+1), y = 1, label = Name), data = top_out_NA_Sales, nudge_y = 1, size = 2, min.segment.length = 0)+
+  labs(x = "Log transform of North America Sales (million)",
+       title = "The unimodal distribution of North America Sales (million USD) is positively skewed.",
+       subtitle = "Top 5 most extreme outliers labeled",
+       caption = "Figure 1.1: Histogram of North America Sales with top 5 outliers.")+
+       theme(plot.title = element_text( size = 13),
+             plot.subtitle = element_text( size = 10),
+             plot.caption = element_text(hjust = 0, size = 10))
+```
+The outcome variable NA_Sales has a unimodal distribution that is heavily skewed in the positive direction and has a number of extreme outliers. There are many instances of zero values. 
+
+## European Union Sales
+```{r predictor variable EU_Sales distribution}
+variable <- vgsales$EU_Sales
+five_num_sum <- summary(variable)
+IQR <- IQR(variable)
+sd <- round(sd(variable),2)
+skew <- round(skewness(variable),2)
+outliers <- boxplot.stats(variable)$out
+outliers_values_EU <- vgsales[which(variable %in% c(outliers)),]
+cat("Univariate summary of European Union Sales (million)) ",capture.output(five_num_sum),"Interquartile range: ",IQR,"standard deviation: ", sd,"skewness: ", skew, "no. of outliers: ", length(outliers), sep = "\n")
+
+top_out <- outliers_values_EU %>% slice_max(EU_Sales,n = 5)
+
+vgsales %>% ggplot(aes(x = log(variable+1)))+
+  geom_histogram(binwidth = 0.25, show.legend = FALSE, fill = "blue")+
+  geom_text_repel(aes(x=log(EU_Sales+1), y = 1, label = Name), data = top_out, nudge_y = 1, size = 2, min.segment.length = 0)+
+  labs(x = "Log transform of European Union Sales (million)",
+       title = "The unimodal distribution of European Union Sales (million ) is positively skewed.",
+       subtitle = "Top 5 most extreme outliers labeled",
+       caption = "Figure 1.2: Histogram of European Union Sales with top 5 outliers.")+
+       theme(plot.title = element_text( size = 13),
+             plot.subtitle = element_text( size = 10),
+             plot.caption = element_text(hjust = 0, size = 10))
+       
+```
+
+The numerical variable European Union sales has a unimodal distribution that is heavily skewed in the positive direction and has a number of extreme outliers. There are many instances of zero values. 
+
+## Japanese Sales
+```{r predictor variable JP_Sales distribution}
+variable <- vgsales$JP_Sales
+five_num_sum <- summary(variable)
+IQR <- IQR(variable)
+sd <- round(sd(variable),2)
+skew <- round(skewness(variable),2)
+outliers <- boxplot.stats(variable)$out
+outliers_values_JP <- vgsales[which(variable %in% c(outliers)),]
+cat("Univariate summary of Japanese Sales (million) ",capture.output(five_num_sum),"Interquartile range: ",IQR,"standard deviation: ", sd,"skewness: ", skew, "no. of outliers: ", length(outliers), sep = "\n")
+
+top_out <- outliers_values_JP %>% slice_max(JP_Sales,n = 5)
+
+vgsales %>% ggplot(aes(x = log(variable+1)))+
+  geom_histogram(binwidth = 0.25, show.legend = FALSE, fill = "blue")+
+  geom_text_repel(aes(x=log(JP_Sales+1), y = 1, label = Name), data = top_out, nudge_y = 3, force = 3, size = 2.5, min.segment.length = 0)+
+  labs(x = "Log transform of Japanese Sales (million)",
+       title = "The unimodal distribution of Japanese Sales (million) is positively skewed.",
+       subtitle = "Top 5 most extreme outliers labeled.",
+       caption = "Figure 1.3: Histogram of Japanese Sales with top 5 outliers.")+
+       theme(plot.title = element_text( size = 13),
+             plot.subtitle = element_text(size = 10),
+             plot.caption = element_text(hjust = 0, size = 10))
+```
+
+The numerical variable Japanese sales has a unimodal distribution that is heavily skewed in the positive direction and has a number of extreme outliers. There are many instances of zero values. 
+
+## Other sales
+```{r predictor variable Other_Sales distribution}
+variable <- vgsales$Other_Sales
+five_num_sum <- summary(variable)
+IQR <- IQR(variable)
+sd <- round(sd(variable),2)
+skew <- round(skewness(variable),2)
+outliers <- boxplot.stats(variable)$out
+outliers_values_Other <- vgsales[which(variable %in% c(outliers)),]
+cat("Univariate summary of Other Sales (million) ",capture.output(five_num_sum),"Interquartile range: ",IQR,"standard deviation: ", sd,"skewness: ", skew, "no. of outliers: ", length(outliers), sep = "\n")
+
+top_out <- outliers_values_Other %>% slice_max(Other_Sales,n = 5)
+
+vgsales %>% ggplot(aes(x = log(variable+1)))+
+  geom_histogram(binwidth = 0.25, show.legend = FALSE, fill = "blue")+
+  geom_text_repel(aes(x=log(Other_Sales+1), y = 1, label = Name), data = top_out, nudge_y = 2, force = 2, size = 2, min.segment.length = 0)+
+  labs(x = "Log transform of Other Sales (million)",
+       title = "The unimodal distribution of other country sales (million) is positively skewed.",
+       subtitle = "Top 5 most extreme outliers labeled.",
+       caption = "Figure 1.4: Histogram of Other Sales with top 5 outliers.")+
+       theme(plot.title = element_text( size = 13),
+             plot.subtitle = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10))
+```
+
+The numerical variable Other sales has a unimodal distribution that is heavily skewed in the positive direction and has a number of extreme outliers. There are many instances of zero values.
+
+
+## Platform
+```{r data table of platform }
+vgsales %>%
+  group_by(Platform) %>%
+  summarise("Number of titles" = n()) %>%
+  arrange(desc(`Number of titles`)) %>% 
+  mutate("Proportion of titles (%)" = round((100*`Number of titles` / sum(`Number of titles`)),2),
+         "Cumulative proportion of titles (%)" = round(100*cumsum((`Number of titles` / sum(`Number of titles`))),2),
+         "Cumulative proportion of levels of Platform (%)" = round(100*(seq_along(Platform)/max(seq_along(Platform))),1))%>%
+   kable(align = "c", booktabs = TRUE ,table.attr = "style='width:75%;'" ,caption = paste("Table 1.5: Counts and proportions of all releases across Platforms Worldwide")) %>%  
+  kable_styling(latex_options = "striped" )%>%
+  row_spec(0, background = "#FBCEB1")
+```
+
+The distribution of categories of the Platform variable is greatly imbalanced with the bottom 25.8% of categories  contributing only 0.34% to the total observations, whereas the top 25% of categories make up 70% of the data.   
+
+## Publisher
+As the Publisher variable has many levels, only the Publishers that make up the top 80% of the video game titles are shown. 
+```{r Data Table of Publisher}
+top_prop = 80
+Publisher_table <- vgsales %>%
+  group_by(Publisher) %>%
+  summarise("Number of titles" = n(),
+            "Total global sales (million)" = sum(World_Sales)) %>%
+  arrange(desc(`Number of titles`)) %>%
+  mutate("Cumulative proportion of titles (%)" = round(100*cumsum((`Number of titles` / sum(`Number of titles`))),2),
+         "Cumulative proportion of Publishers (%)" = round(100*(seq_along(Publisher)/max(seq_along(Publisher))),1), .before = "Total global sales (million)" )  
+Publisher_table %>%
+    head(1+sum(Publisher_table %>% select(3) < top_prop)) %>%
+    kable(align = "c", booktabs = TRUE ,table.attr = "style='width:70%;'",caption =paste("Table 1.6: The top ",top_prop,"% of titles by Publisher Worldwide")) %>%  
+    kable_styling(latex_options = "striped")%>%
+    row_spec(0, background = "#FBCEB1") 
+```
+
+Table 1.6 shows that 80% of all video game titles is released by approximately 8% of all Publishers. A large majority of publisher only released a small number of titles. There are many levels of the variable Publish with very few examples in the dataset, resulting in a very high class imbalance. It is important to note that the Publisher variable  has 57 instances of N/A that have a non-insignificant share of the global market. 
+
+## Genre
+```{r Data Table most popular genre}
+vgsales %>%
+  group_by(Genre) %>%
+  summarise("Number of titles" = n()) %>%
+   arrange(desc(`Number of titles`)) %>%
+  mutate("Proportion of titles (%)" = round((100*`Number of titles` / sum(`Number of titles`)),2),
+         "Cumulative proportion of titles (%)" = round(100*cumsum((`Number of titles` / sum(`Number of titles`))),2),
+         "Cumulative proportion of levels of Genre (%)" = round(100*(seq_along(Genre)/max(seq_along(Genre))),1))  %>%
+   kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 1.7: Counts and proportions of all releases by Genre Worldwide") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+```
+Table 1.7 shows the  distribution of categories of the Genre variable is only slightly imbalanced with the largest imbalance ratio of approximately 6:1 between the major and minor classes. 
+
+
+## Total global sales across Publisher and Platform 
+```{r data table of greatest sales}
+n_rows = 10
+top<- vgsales %>%
+  group_by(Publisher,Platform) %>%
+  summarise("Number of titles" = n(),
+            "Total Sales (million)" = sum(World_Sales)) %>%
+   arrange(desc(`Total Sales (million)`)) %>% head(n_rows)
+
+bottom <- vgsales %>%
+  group_by(Publisher,Platform) %>%
+  summarise("Number of titles" = n(),
+            "Total Sales (million)" = sum(World_Sales)) %>%
+   arrange(desc(`Total Sales (million)`))  %>% tail(n_rows)
+middle <- tibble(Publisher = "...",
+                 Platform = "...")
+
+bind_rows(bind_rows(top,middle),bottom) %>%
+   kable(align = "c", booktabs = TRUE ,caption = paste("Table 1.8:",n_rows," highest and lowest video game sales released by Publishers across Platforms in the Global market.")) %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+  
+```
+Table 1.8 shows the top 10 highest and lowest grossing Publishers of video games across different gaming platforms. The Nintendo releases on the Wii and DS platforms have achieved the greatest share of the global market at a total of 740 million.
+
+
+Variables are converted to correct data type. Categorical variables are converted to factors.
+
+```{r converting variables to correct type and transform variables}
+vgsales$Year <- as.integer(vgsales$Year)
+vgsales$Genre <- as_factor(vgsales$Genre)
+
+vgsales$Platform <- as_factor(vgsales$Platform)
+
+
+```
+
+As the Platform variable suffers from an imbalance in categories with many minor classes, the smallest levels are to be lumped into a single category labelled 'Other'. This reduces the imbalance ratio and examples of each category are more likely to occur in random samples of the dataset. As seen in table 1.5, the bottom 26% of categories will be lumped into the single level of 'Other'.  
+
+```{r lump factors of Platform}
+
+vgsales$Platform <- fct_lump_prop(vgsales$Platform, prop = 0.005, other_level = "Other")
+
+```
+
+As the outcome variable NA_Sales is heavily skewed with significant outliers, as shown in figure 1.1, the variable is to be transformed with the outliers removed. The outliers are Nintendo titles, of the platform, sport and puzzle genres, and are of a segment of the market not strictly pertaining to the focus of the company.  To address the positive skew with zero values in the outcome variable, a log(x + offset) transform is performed. The offset will be half of non-zero minimum value of NA_Sales, being 0.01, giving an offset of 0.005.
+
+```{r clean and transform outcome variable}
+
+vgsales <- vgsales %>% filter(!(ID %in% c(top_out_NA_Sales$ID)))
+vgsales <- vgsales %>% mutate(NA_Sales = log(NA_Sales + 0.005))
+
+```
+
+To ensure that fitting regression models, such as Lasso and Random Forest regression, is a computationally feasible task given the available hardware, the dataset is to be reduced by random sampling across the Genre variable. The Genre variable has the least imbalance compared to Platform and also has a higher proportion of instances across each category. The category of Genre with the least examples is 'Puzzle' with 581 remaining instances, after removing an outlier, and so sampling this amount of instances across the 12 levels of the Genre variable gives the largest subset.  
+
+```{r Reduce data size via sampling}
+
+set.seed( 2856 )
+vgsales <- vgsales %>% 
+  group_by( Genre ) %>% 
+  sample_n(581 ) %>% 
+  ungroup() 
+  
+```
+
+Any remaining missing values in the Year variable are to be dropped. Also the variables of Publisher, Name, ID and World_Sales are to be removed. Publisher has too many levels and is greatly imbalanced and attempting to fit a model with this as a predictor variable could lead to over fitting issues and prediction errors. ID and Name are identifier variables and have no correlation to the outcome variable, while World_Sales is too highly correlated to the other numerical variables and would lead to prediction errors.   
+
+```{r drop variables}
+
+vgsales <- vgsales %>%
+  drop_na(Year)%>% 
+  select(-c(Publisher, Name,ID,World_Sales))
+
+skim(vgsales)
+```
+Table 1.9: A review of the key variables for further analysis.
+
+# 2.0 Exploratory Data Analysis
+
+The exploratory data analysis of the reduced data set will explore the following:
+1. Natural grouping structures of the numerical predictor variables
+2. A principal component analysis of predictor variables.
+3. Bivariate analysis of between predictors and the outcome variable.
+
+The aim is to identify the most important variables that explain the variations in North America sales. To examine grouping structures of the data, a parallel coordinate plot and principal component analysis is conducted.  The principal component analysis involve numerical predictor variables. The variables that will be included in the analysis will be the numerical predictors of Year, EU_Sales, JP_Sales and Other Sales, as well as the nominal predictor variables of Platform and Genre. The The nominal variables need to be converted to dummy variables, then all numeric variables are normalised to have a mean of 0 and standard deviation of 1.
+
+```{r set seed}
+set.seed(1234)
+```
+
+## Parallel Coordinate Plot
+
+The plot allows a comparison of the feature of a subset of observations over the numeric variables and the outcome variable. This is to identify any natural grouping structures and trends in the variables.
+
+```{r Parallel Coordinates Plot}
+# min max Normalisation of the numerical predictors to have the values along the same scale.
+ 
+prep_PCP <- vgsales %>% select(NA_Sales,EU_Sales,JP_Sales,Other_Sales, Year) %>%
+  caret::preProcess(method = c("range"))
+
+vgsales_PCP <- predict(prep_PCP, vgsales)
+
+# Obtain a random subset to reduce overlap and improve clarity 
+vgsales_PCP <- vgsales_PCP %>%
+group_by(Genre) %>% 
+  sample_n(200) %>% 
+  ungroup()
+
+ vgsales_PCP <- vgsales_PCP %>%
+  mutate(ID = row_number()) %>%
+  pivot_longer(cols = c(Year,JP_Sales,EU_Sales,Other_Sales))
+  
+vgsales_PCP$name <- factor(vgsales_PCP$name, levels = c("Year","JP_Sales","EU_Sales","Other_Sales") )
+
+vgsales_PCP%>%
+  ggplot(aes(x = name, y = value, col = NA_Sales ))+
+  geom_line(aes(group = ID)) +
+  scale_colour_gradientn(colours = terrain.colors(10))+
+  labs(x = "numerical variables",
+       y = "min-max normalisation of values",
+       title = "Natural grouping structures across numerical variables and Genre.",
+       caption = "Figure 2.1: Parallel Coordinate Plot of numerical variables.")+
+       theme(plot.title = element_text( size = 12),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+```
+
+Some grouping structures and patterns of numerical variables are present as seen in figure 2.1. Lower values, constituting as the majority of values of NA_Sales variable as it is positively skewed, are clustered along the upper 3 quartiles of the Year variable, that is, from 1990 to 2020. Lower values of the NA_Sales variable are also clustered around the lower values of JP_Sales, EU_Sales and Other_Sales. Also, as the numerical variables of sales increase so does the values of NA_Sales, suggesting they are positively correlated. 
+
+## Principal Component Analysis
+
+The numerical variables of Year, JP,Sales, EU_Sales, Other_Sales and the nominal variable of Platform and Genre are to be included in Principal Component Analysis. The nominal variables are to be converted to dummy variables with the reference variables corresponding to the level with the highest median value of NA_Sales. All predictor variables are to be normalised to have a mean value of 0 and a standard deviation of 1. The variables are then converted to principal components.   
+
+```{r Principal Component Analysis}
+
+# Transform the outcome variable using a log transforms
+
+vgsales_pca <- recipe(NA_Sales~., data = vgsales) %>%
+  
+  step_dummy(all_nominal())%>%
+  step_normalize(all_predictors())%>%
+  step_pca(all_predictors()) %>%
+  prep()
+
+# give the number of predictors and  maximum number of Principal Components
+n_predictors <- length(vgsales_pca$steps[[3]]$columns)
+
+tidy(vgsales_pca, 3) %>%
+  filter(component %in% c("PC1","PC2","PC3","PC4")) %>%
+  group_by(component) %>%
+  top_n(10,abs(value))%>%
+  ungroup()%>%
+  ggplot(aes(x = reorder_within(terms,abs(value),factor(component)),y = abs(value), fill = value > 0 ))+
+  geom_col(show.legend = FALSE)+
+  facet_wrap(~component, scales = "free_y")+
+  coord_flip()+
+  scale_x_reordered()+
+  scale_y_continuous(expand = c(0,0))+
+  labs(y = "Absolute value of PC loadings",
+       x = "Variables of importance",
+       title = paste(" Most important variables in first four Principal Components out of ",n_predictors," total components."),
+       caption = "Figure 2.2: PCA loadings for the first four components.")+
+       theme(plot.title = element_text( size = 11),
+        plot.caption = element_text(hjust = 0, size = 11))
+
+```
+
+Figure 2.2 suggests that European Union Sales, Other global Sales and Japanese Sales are the most important predictors in the first component. In the second component, Year is the most important then followed by video game Platforms released by Sony and Nintendo. The third component has the gaming platform Nintendo DS and games of the Puzzle genre, followed by games of the first-person Shooter genre as the most important variables. In the four components, the PC gaming platform and games of the Strategy genre are the most important. 
+
+```{r Proportion of Variation Explained}
+
+stdev <- vgsales_pca$steps[[3]]$res$sdev  # Standard deviations of PC
+ve <- stdev^2/sum(stdev^2) # variance explained
+
+pc_pve <- tibble(PC = 1:length(ve),
+       pve = cumsum(ve))
+
+pc_90 <- min(pc_pve %>% filter(pve > 0.9) %>% select(PC))
+
+pc_pve %>% ggplot(aes(x = PC, y= pve, fill = pve))+
+  geom_col(show.legend = FALSE)+
+  geom_segment(aes(x=pc_90,y=0,xend=pc_90,yend=0.9),color = "red",linetype = 2)+
+  geom_segment(aes(x=0,y=0.9,xend=pc_90,yend=0.9),color = "red",linetype = 2)+
+  geom_text(aes(x = 1, y =0.9,label = "90% explained"),size = 3,vjust = 1.5,color="red")+
+  geom_text(aes(x = pc_90, y =0.9,label = paste("PC ",pc_90)),size = 3,vjust = -1,color = "red")+
+  labs( x = "Principal Components",
+        y = "Proportion of Variation Explained",
+        title = paste(" Explaining at least 90% of variation requires ",round(100*pc_90/n_predictors),"% of available Principal Components.",sep=""),
+        caption = "Figure 2.3: Proportion of Variation Explained by Principal Components.")+
+       theme(plot.title = element_text( size = 11.5),
+        plot.caption = element_text(hjust = 0, size = 10))
+  
+```
+
+Figure 2.3 suggests that the first 6 components explain approximately 25% of variation in the data. In order to explain 90% of the variation, up to 29 principal components need to be considered, being 78% of all possible predictors. This degree of reduction in dimension provides minimal benefit to the loss of explanatory power and simplicity of the model. The principal components are not to be considered to fit the predictive model.   
+
+
+## Bivariate Analysis
+
+```{r Bivariate Analysis of Genre amd NA_Sales variable}
+vgsales %>% ggplot(aes(x = reorder(Genre,NA_Sales,median), y = NA_Sales, fill = Genre))+
+  geom_boxplot(show.legend = FALSE)+
+  labs(x = "Video game Genre",
+       y = "log transform of North American Sales.",
+       title = "Video games of Action, Shooter and Platform genres have highest median sales in North America.",
+       caption = "Figure 2.4: Parallel Boxplot of Genre and North American Sales.")+
+       theme(plot.title = element_text( size = 11),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.text.x = element_text(angle = 45))
+
+```
+A slight association is observed between Genre and North America sales as variation in median sales is observed across genres.  
+
+
+```{r Bivariate Analysis of Platform amd NA_Sales variable}
+vgsales %>% ggplot(aes(x = reorder(Platform,NA_Sales,median), y = NA_Sales, fill = Platform))+
+  geom_boxplot(show.legend = FALSE)+
+  labs(x = "Video game Platforms",
+       y = "log transform of North American Sales.",
+       title = "Video games on Platforms of Xbox 360 N64, NES and Atari 2600 have the highest median sales in North America.",
+       caption = "Figure 2.5: Parallel Boxplot of Platform and North American Sales.")+
+       theme(plot.title = element_text( size = 10),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.text.x = element_text(angle = 45))
+
+```
+
+Figure 2.5 shows there is an association between North American sales and video game platforms as variation in median sales and interquartile range of sale values is observed across the different platforms.     
+
+
+```{r Bivariate Analysis of NA_Sales, EU_Sales, JP_Sales and Other_Sales variable}
+log_vars <- vars(EU_Sales:Other_Sales)
+
+vgsales %>% 
+  mutate_at(log_vars,log1p)%>%
+  ggpairs(columns = 4:7,
+          upper = list(continuous = wrap("cor", size = 6)),
+          diag = list(continuous = "blankDiag"),
+          lower = list(continuous =  wrap(ggally_smooth, method = "lm", se = FALSE,colour = "red")),
+          progress = FALSE)+
+  labs(x = "Log of Sales",
+       y = "log of Sales",
+       title = "Interaction between video game sales of North America, European Union, Japanese and Other Global markets.",
+       caption = "Figure 2.6: Pairwise plot of the global market sales.")+
+       theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.text.x = element_text(angle = 45))
+
+```
+
+Figure 2.6 suggests that Video game title sales in the North America market is positively correlated with the sales in the European Union, Japanese and other global markets. North America sales has the strongest linear correlation with sales in the European Union market, followed by sales in other global markets, with correlation coefficient of 0.54 and 0.48 respectively. Video game sales in North America is least correlated with sales in the Japanese market, with correlation coefficient of 0.04.
+
+```{r NA_Sales and Year}
+vgsales %>% 
+  group_by(Year) %>%
+  summarise(titles = n(),
+            mean_sales = mean(NA_Sales ),
+            min_sales = min(NA_Sales),
+            max_sales = max(NA_Sales))%>%
+  ungroup() %>%
+  ggplot(aes(x = Year, y = mean_sales))+
+  geom_line(aes(color = "mean sales"), size = 1)+
+  geom_ribbon(aes(ymin = min_sales, ymax = max_sales, linetype = "range in Sales"), alpha = 0.5, fill = "pink",color = "pink") +
+  geom_line(aes(y=titles/400, color = "trend in releases"))+
+  scale_color_manual(values = c("mean sales" = "red","trend in releases" = "blue"))+
+  labs(x = "Year of release",
+       y = "log transform of North America sales",
+       title = "Variation of video game title sales in North America over time.",
+       linetype = "",
+       color = "",
+       caption = "Figure 2.7: Time Series of North America Sales")+
+       theme(plot.title = element_text(size = 12),
+        plot.caption = element_text(hjust = 0, size = 10))
+  
+```
+
+Figure 2.7 shows the trend in Video game sales per title in the North America market has increased in range over time, coinciding with a peak in the number of titles sold in the late 2000s. A positive trend in maximum sales per title in North America is observed for the period of early 1980s to late 2000s, then decreases beyond 2010 in line with a decrease in the number of titles sold overall. Median sales per title decreases from early 1990s and remains low for the remaining period as a greater range of titles are released into the market.
+
+## Summary
+The response variable of NA_Sales is most strongly correlated with EU_Sales and Other_Sales and are the most important key predictors to explain variations in NA_Sales. JP_Sales and Year are also moderately correlated with NA_Sales. As Year increases, the mean value of NA_Sales exhibits changing decreasing and stationary trends, while the range of NA_Sales progressively increases. Also, no  data for Year is available beyond 2020 leading to a trend in video game releases, and consequently values of NA_Sales, drop to zero artificially, which is not representative of a true behaviour. The variable NA_Sales also shares an association with the variables Platform and Genre, though not to the same extent as with other variables. This is noticeable in the size of the principal component loadings for Platform and Genre compared to the sales variables, as the seen in figure 2.2.   
+
+# 3.0 Prepropcessing data
+
+The data is split into training and testing sets along a 75%/25% split. The stratification variable is set to Genre as it comprises of fewer levels, greater number of incidences per level and a smaller ratio of imbalance compared to Platform.
+
+
+```{r data split}
+set.seed(1334)
+
+
+(vgsales_split <- initial_split(vgsales ))
+vgsales_train <- training(vgsales_split)
+vgsales_test <- testing(vgsales_split)
+
+```
+```{r training and testing sets}
+
+vgsales_train %>% 
+  group_by(Genre, Platform) %>%
+  summarise(train_n = n()) %>%
+  mutate(train_prop = train_n/sum(train_n)) %>%
+ 
+  left_join(vgsales_test%>%
+              group_by(Genre,Platform) %>%
+              summarise(test_n = n())%>%
+  mutate(test_prop = test_n/sum(test_n)), 
+  by = c("Genre","Platform")) %>% ungroup() %>%
+  select(Genre,Platform,train_prop,test_prop) %>%
+  mutate(difference = 100*(train_prop - test_prop)) %>%
+  ggplot(aes(x = Platform, y = difference, fill = difference > 0))+
+  geom_col(show.legend = FALSE)+
+  facet_wrap(~Genre)+
+  labs(x = "Video Game Platforms",
+       y = "difference in proportion (%)",
+       title = "The difference in proportion of observations across Genre and Platform in the training and testing data sets.",
+       caption = "Figure 3.0: column charts of difference in proportions of incidences of nominal predictors in data sets.")+
+       theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10),
+        axis.text.x = element_text(angle = 90, size = 5))
+            
+
+```
+
+Figure 3.0 shows the difference in proportion of incidences of Platforms in the training and testing data sets stratified across Genre. All differences in categories of Platform are no more than 8%. The relatively small differences in Platform proportions across genres in the training and testing sets suggests that the subgroups are relatively homogeneous and would contribute minimally to prediction errors.
+
+
+The preprocessing steps to be applied to the data are as follows:
+1. Removal of the variable Year as keeping it as a predictor  could lead to  unreliable outcomes, due to incomplete data for years 2020 and beyond. 
+2. Convert all categories of nominal variables, Genre and Platform, to dummy variables. This allows discrete binary values to represent the categories. This is necessary in order to normalise the data.
+3. Remove any predictor variable of zero variance that would not contribute to explaining variation in the model.
+4. Normalize all predictor variables such that they have a mean of 0 and a standard deviation of 1, to improve the model fitting. 
+5. Remove highly correlated predictor variables, to address issues of multicollinearity in the regression model.
+
+
+The recipe for preprocessing is outlined below and is then applied to the training and testing datasets. 
+```{r preprocessing}
+vgsales_recipe <- recipe(NA_Sales~.,data = vgsales_train) %>%
+  step_rm( Year ) %>% 
+  step_dummy(all_nominal()) %>%
+  step_zv(all_predictors())%>%
+  step_normalize(all_predictors()) %>%
+  step_corr(all_predictors()) %>%
+  prep() 
+
+# apply preprocessing to training data
+vgsales_train_preproc <- vgsales_recipe %>%
+  juice()
+
+#apply preprocessing to testing data
+vgsales_test_preproc <- bake(vgsales_recipe, vgsales_test)
+
+```
+
+# 4.0 Model fitting
+
+The model-fitting process is as follows:
+1. Define model specifications for Lasso Regression and Random Forest Regression models
+2. Tune the models with a set of bootstrapped samples of the training data.
+3. Select the best model using k-fold cross-validation. 
+4. Fit the best performing model to the whole training data set.
+5. Identify the most important variables for predicting the outcome variable, NA_Sales.
+6. Evaluate the predictive performance of the model using the testing data set.
+
+```{r Model specification}
+set.seed(1334)
+
+lasso_spec <- linear_reg(mode = "regression", penalty = tune(),  mixture = 1) %>%
+  set_engine("glmnet")
+
+rf_spec <- rand_forest(mode = "regression", mtry = tune(), trees = 100, min_n = tune())%>%
+  set_engine("ranger", importance = "permutation")
+
+```
+The tuning of the Lasso Regression and Random Forest Regression models is to be done on bootstrapped data of the training data set.
+
+```{r bootstraps}
+vgsales_boots <- bootstraps(vgsales_train_preproc, times = 10)
+
+```
+
+A Lasso model is tuned using a tuning grid of 200 values of penalty hyperparameter ranging from 0.0001 to 1. 
+
+```{r Lasso model tuning}
+penalty_grid <- grid_regular( penalty( range = c(-4, 0), trans = log10_trans() ), 
+                             levels = 400)
+
+lasso_grid <- tune_grid(lasso_spec,
+                       preprocessor = NA_Sales~.,
+                       resamples = vgsales_boots,
+                       grid = penalty_grid)
+
+# selecting optimum hyperparameter value
+
+best_lasso_penalty <- select_best( lasso_grid, "rmse")
+
+# give corresponding metric value for optimum hyperparameter
+
+best_rmse <- (show_best( lasso_grid, "rmse" ) %>% filter(penalty ==  best_lasso_penalty$penalty))$mean
+
+# examine metrics of the tuning
+lasso_grid %>%
+  collect_metrics() %>%
+  ggplot(aes(x = penalty, y = mean, color = .metric))+
+  geom_line()+
+  geom_ribbon(aes(ymin = mean - std_err, ymax = mean + std_err, fill = .metric), alpha = 0.5)+
+  facet_wrap(~.metric, scales = "free", nrow = 2)+
+  scale_x_log10()+
+  labs(x = "Penaly hyperparameter for Lasso regression",
+       y = "bootstrapped mean of metric estimate",
+       title = "Hyperparameter tuning with metrics of root mean squared error and r squared showing standard error.",
+       caption = "Figure 4.1: Line graphs of hyperparameter tuning.")+
+       theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+```
+
+```{r optimal parameters for Lasso regression}
+
+tibble(penalty = round(best_lasso_penalty$penalty,5),
+       rmse = round(best_rmse,5))  %>%
+   kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 4.1: Optimal penalty and rmse value for Lasso regression") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+
+# finalise Lasso Regression model 
+final_lasso <- finalize_model( lasso_spec, best_lasso_penalty )
+
+```
+
+ The Lasso regression model is tuned with 10 bootstrapped resamples of the training data. An optimal penalty of 0.00105 is achieved giving a minimum rmse value of 1.432.  
+
+
+A Random Forest model is tuned using a tuning grid of 25 combinations of values of hyperparameters mtry and min_n. 
+
+```{r Random Forest model tuning}
+set.seed(6789)
+hp_grid <- grid_regular( finalize(mtry(),vgsales_train_preproc %>% select(-NA_Sales)),
+                         min_n(),
+                         levels = 5)
+
+
+
+rf_grid <- tune_grid(
+  rf_spec,
+  preprocessor = NA_Sales~.,
+  resamples = vgsales_boots,
+  grid = hp_grid
+  )
+
+
+
+# selecting optimum hyperparameter value
+
+best_rf_params <- select_best( rf_grid, "rmse" )
+
+# give corresponding metric value for optimum hyperparaeter
+
+best_rmse <- (show_best( rf_grid, "rmse" ) %>% filter((mtry ==  best_rf_params$mtry) & (min_n ==  best_rf_params$min_n)))$mean
+
+# examine metrics of the tuning
+rf_grid %>%
+  collect_metrics() %>%
+  mutate(min_n = as.factor(min_n)) %>%
+  ggplot(aes(x = mtry, y = mean, color = min_n))+
+  geom_line(alpha = 0.5)+
+  geom_point(color = "black")+
+  facet_wrap(~.metric, scales = "free", nrow = 2)+
+  labs(x = "mtry hyperparameter for random forest",
+       y = "bootstrapped mean of metric estimate",
+       title = "Hyperparameter tuning with metrics of root mean squared error and r squared.",
+       caption = "Figure 4.2: Random Forest Regression metrics for different parameter values.")+
+       theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10))
+```
+
+```{r Optimal Random Forest parameter}
+
+tibble(mtry = best_rf_params$mtry,
+       min_n = best_rf_params$min_n,
+       rmse = round(best_rmse,4))  %>%
+   kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 4.2: Optimal mtry and min_n values for Random Tree regression") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+
+# finalise Lasso Regression model 
+final_rf <- finalize_model( rf_spec, best_rf_params )
+```
+
+Figure 4.2 demonstrates the outcome for tuning a Random Forest regression model fitting across 10 bootstrapped resamples of the training dataset. Optimal values for the parameters mtry and min_n are 18 and 11 respectively, achieving a minimum rmse of 0.6704.  
+
+
+A k-fold cross validation process is used to estimate the prediction performance of the Lasso and Random Forest regression models.The model with the better performance metrics will be the chosen model. The K-fold cross validation method is used for 10 folds of the training dataset. 
+```{r model selection with cross validation}
+set.seed(4567)
+
+vgsales_cv <- vfold_cv(vgsales_train_preproc, v = 10)
+
+
+lasso_cv <- fit_resamples(final_lasso,
+                          preprocessor = NA_Sales~.,
+                          resamples = vgsales_cv)
+
+
+rf_cv <- fit_resamples(final_rf,
+                       preprocessor = NA_Sales~.,
+                       resamples = vgsales_cv)
+
+cv_metrics <-lasso_cv%>%
+  collect_metrics()%>%
+  mutate(model = "Lasso", .before = .metric)%>%
+  bind_rows(rf_cv%>%collect_metrics()%>%
+              mutate(model = "Random Forest", .before = .metric))
+
+cv_metrics %>%
+  ggplot(aes(x = model, y = mean, fill = model))+
+  geom_bar(stat="identity",alpha = 0.7, show.legend = FALSE)+
+  geom_errorbar(aes(ymin = mean - std_err, ymax = mean + std_err),width = 0.4, color = "red")+
+  facet_wrap(~.metric)+
+  labs(x = "Regression models",
+       y = "Mean cross validation estimate",
+       title = "Model performance estimates under cross validation show Random Forest model outperforms Lasso model.",
+       caption = "Figure 4.3: Random Forest Regression metrics for different parameter values.")+
+       theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+
+
+```
+
+
+```{r cross-validation results table}
+
+cv_metrics %>% select(-c(.estimator, n, .config))  %>%
+  mutate(mean = round(mean,4),
+         std_err = round(std_err,4)) %>%
+  rename("Performance metric" = .metric, "Standard error" = std_err)%>%
+  
+   kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 4.3: Cross-validation performance metrics for the two regression models.") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+```
+
+The optimal regression model is the Random Forest model with improved mean values for performance metric estimates compared to the Lasso regression model, as seen in figure 4.3 and table 4.3. Under a 10-fold cross validation the Random Forest model out performs the Lasso regression model with rmse of 0.6402 compared to 1.431, a 55% decrease. The r squared estimate for the Random Forest model increases by about 112% to 0.8800 from a value of 0.4145 for the Lasso Regression model. 
+
+
+```{r fit Random Forest model to training data}
+
+set.seed(1928)
+vgsales_rf <- final_rf %>%
+  fit(NA_Sales~., data = vgsales_train_preproc)
+
+vgsales_rf
+```
+
+
+# 5.0 Model Evaluation 
+To evaluate the performance of the Random Forest regression model, the following will be achieved:
+1. Identify the important predictor variables.
+2. Fit the model to the unseen test data set, examine performance metrics of rmse and r squared and coompare to cross-validation estimates. 
+
+```{r variable importance}
+vi(vgsales_rf) %>%
+  slice_max(order_by = Importance, n=15) %>%
+  ggplot(aes(x = Importance, y = reorder(Variable,Importance), fill = Importance))+
+  geom_bar(stat = "identity", show.legend = FALSE)+
+  labs(x = "Variable Importance",
+       y = "predictor vaiables",
+       title = "Other sales and European Union sales are the most important variables in Random Forest model.",
+       caption = "5.1: Variable importance plot for predicting North America sales.")+
+  theme(plot.title = element_text(size = 10),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+```
+Figure 5.1 clearly highlights the most important variables in predicting sales of video games in North America using Random Forest model as the sales in other global markets, followed by the sales in the European Union and then in the Japanese market. The important platforms in predicting sales for North America are games on PC, then games produced for the Sony PlayStation platforms.The video game genres are the least important variables in predicting North American sales.
+
+
+```{r predict on test data}
+vgsales_preds <- predict(vgsales_rf, new_data = vgsales_test_preproc) %>%
+  bind_cols(vgsales_test_preproc %>% 
+              select(NA_Sales))
+
+vgsales_preds %>%
+  ggplot(aes(x = NA_Sales, y = .pred))+
+  geom_point()+
+  geom_abline(slope = 1, intercept = 0, color = "red")+
+  labs(x = "True North America sales",
+       y = "Predicted North America sales.",
+       title = "Middle to larger values of North America sales are under-predicted.",
+       caption = "Figure 5.2: Scatter plot of truth and predicted values.")+
+  theme(plot.title = element_text(size = 13),
+        plot.caption = element_text(hjust = 0, size = 10))
+
+```
+
+Figure 5.2 highlights the accuracy of the predictions by showing how predictions for corresponding true values of North American sales deviate from the instance of a perfect prediction. This perfect prediction is illustrated as the red line. The predicted values of North America sales are randomly scattered about the true values for the lower to mid part of the scale. The model is predicting well for these values except for zero values where the model tends to over-predict. The model tends to under-predict forlarge values of North America sales. 
+
+```{r prediction performance metrics}
+vgsales_preds %>%
+  metrics(truth = NA_Sales, estimate = .pred) %>%
+  filter(!(.metric == "mae")) %>%
+  select(-.estimator) %>%
+  mutate(.estimate = round(.estimate,4))%>%
+  rename("Performance metrics" = .metric, "Value" = .estimate) %>%
+kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 5.1: Performance evaluation metrics of the Random Forest model.") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+
+```
+The Root Mean Square Error (rmse) is the standard deviation of the square of all the prediction errors. The smaller this value is the better the model is at predicting. The Random Forest model achieved a rmse of 0.6766 as seen in Table 5.1, which is similar to the cross validation estimate given in Table 4.3. Also, the other metric rsq is the coefficient of determination and is a measure of goodness of fit. A value of 0.8692  suggests that 86.9% of variation in the outcome variable NA_Sales is explained by variation in the predictor variable by Random Forest regression model.
+
+```{r Predictions for Fatal Empire video game}
+fatal_empire <- tibble(
+  Year = 2022,
+  Platform = "PS4",
+  Genre = "Role-Playing",
+  EU_Sales = 0.53,
+  JP_Sales = 2.58,
+  Other_Sales = 0.1
+)
+
+# recipe for new data
+
+fatal_empire_preproc <- vgsales_recipe %>%
+  bake(fatal_empire)
+
+
+
+pred_y <-predict(vgsales_rf, new_data = fatal_empire_preproc)
+pred_y <- exp(pred_y)-0.005
+
+pred_y %>%
+  rename(" Sales (millions)"=.pred) %>%
+kable(align = "c", booktabs = TRUE,table.attr = "style='width:70%;'" ,caption ="Table 5.2: Prediction for The Fatal Empire North American Sales.") %>%  
+  kable_styling(latex_options = "striped")%>%
+  row_spec(0, background = "#FBCEB1") 
+
+
+end_time = Sys.time()
+
+print(paste("The run time is:", end_time - start_time))
+```
+
+## Summary 
+The Random Forest Regression model performed well when evaluated with the testing dataset. The performance metrics of rmse and rsq were simialr to the cross-validation estimates, with only a slight decline  observed. The predicted sales for the title The Fatal Empire is 0.951 million copies sold.
+
