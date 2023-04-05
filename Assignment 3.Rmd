@@ -1,5 +1,5 @@
 ---
-title: "Assignment 3"
+title: "Predicting Video Game Revenue in North American Market
 author: "Mark Stephens"
 date: "`r Sys.Date()`"
 output:
@@ -24,10 +24,6 @@ With the coming release of the highly anticipated new role-playing game for Play
 This report is to outline the key steps in cleaning and exploring the data, processing the data, tuning the two candidate models to work best the data, and then testing the models and measuring its predictive performance. The data underwent a number of alteration while cleaning and preparing the data. Duplicate observation were removed, as well as the top outlier values in the North America sales variable.  The data was also reduced in size by sampling evenly across the video game genre variable. This would allow the model fitting process to be more computationally feasible. Also a number of variables were dropped from the analysis, them being the video game name and  publisher.
 
 ...
-
-
-
-
 # Statistician's Report
 
 # 1.0 Data Cleaning
