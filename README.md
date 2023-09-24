@@ -7,7 +7,7 @@
 
 <p align="left">
 	<img title="karate" alt="karate" src="https://user-images.githubusercontent.com/90998903/229693125-e6bc23cf-9f2a-4a39-b4f3-51b448e690f2.png" width="30" height="30" style="vertical-align:down; margin:4px"/> 
-	&nbsp;I also instruct Karate at a local dojo.\
+	&nbsp;I am a Karate Instructor at a local dojo.
 </p> 
 
 ✉️ &nbsp;You can shoot me an email at mark.stephens@sudent.adelaide.vic.edu.au! I'll try to respond as soon as I can.\
