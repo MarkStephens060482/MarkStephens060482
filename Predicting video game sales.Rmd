@@ -15,17 +15,6 @@ pacman::p_load(discrim, tidyverse, tidymodels, kknn,dplyr, rsample, ISLR, themis
 path <- setwd("C:\\Users\\08632717\\Documents\\Masters of Data Science Study\\Real Data\\Assignment 3")
 ```
 
-# Summary to CEO
-
-With the coming release of the highly anticipated new role-playing game for PlayStation 4, The Fatal Empire, the company may expect approximately 951,000 copies in sales in the North American video game market. This prediction is based on a thorough scientifically proven, data modelling process to develop a sophisticated model that has been optimised on video game sales data from various global markets. The model has been thoroughly tested and evaluated and has perform very well on test data. The most influential factors to form this prediction are historical sales data for the European Union market, other global markets and the Japanese market. Also, incorporating gaming platform and genre extended the model's reach to ensure it delivers accurate predictions.     
-
-# Manager's Report
-
-This report is to outline the key steps in cleaning and exploring the data, processing the data, tuning the two candidate models to work best the data, and then testing the models and measuring its predictive performance. The data underwent a number of alteration while cleaning and preparing the data. Duplicate observation were removed, as well as the top outlier values in the North America sales variable.  The data was also reduced in size by sampling evenly across the video game genre variable. This would allow the model fitting process to be more computationally feasible. Also a number of variables were dropped from the analysis, them being the video game name and  publisher.
-
-...
-# Statistician's Report
-
 # 1.0 Data Cleaning
 The data cleaning process will organise and prepare the data ready for analysis. The main tasks are as follows:
 1. Read the data, identify and define types of variables
